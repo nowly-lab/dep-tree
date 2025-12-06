@@ -191,66 +191,30 @@
     ];
 
     const linkDataArray = [];
-    const leftNodeMap = new Map();  // Maps original ID to left side key
-    const rightNodeMap = new Map(); // Maps original ID to right side key
+    const leftNodeMap = new Map();
+    const rightNodeMap = new Map();
     let keyCounter = 0;
 
-    // Build dependencies data for quick lookup using fileDependencies
+    // Build dependencies data for quick lookup
     dependenciesData = {};
-    console.log('DEBUG: Raw data.fileDependencies:', data.fileDependencies);
     if (data.fileDependencies) {
       Object.keys(data.fileDependencies).forEach(fileName => {
         const deps = data.fileDependencies[fileName];
-
-        // Normalize the file path key
-        let normalizedKey = fileName;
-        if (!normalizedKey.startsWith('/')) {
-          normalizedKey = '/' + normalizedKey;
-        }
-
-        dependenciesData[normalizedKey] = {
+        dependenciesData[fileName] = {
           dependsOn: deps.dependsOn || [],
           dependedOnBy: deps.dependedOnBy || []
         };
-
-        // Also store with original key for fallback
-        if (normalizedKey !== fileName) {
-          dependenciesData[fileName] = dependenciesData[normalizedKey];
-        }
-
-        console.log(`DEBUG: Processed ${fileName} -> ${normalizedKey}:`, dependenciesData[normalizedKey]);
       });
     }
-    console.log('DEBUG: Final dependenciesData:', dependenciesData);
 
-    // Create complete directory structure for one side
-    function createCompleteDirectoryStructure(nodes, groupId, nodeMap) {
+    // Create hierarchical structure for both sides
+    function createHierarchicalStructure(nodes, groupId, nodeMap) {
       const dirStructure = new Map();
       const dirNodeKeys = new Map();
 
-      // Group files by directory, handling complex paths
+      // Group files by directory
       nodes.forEach(node => {
-        let dirName = node.dirName || '/';
-        let fileName = node.fileName || node.id;
-
-        // Handle full path in node.id if dirName/fileName are not properly set
-        if (node.id && node.id.includes('/')) {
-          const fullPath = node.id.toString();
-          const lastSlashIndex = fullPath.lastIndexOf('/');
-          if (lastSlashIndex > 0) {
-            dirName = fullPath.substring(0, lastSlashIndex + 1);
-            fileName = fullPath.substring(lastSlashIndex + 1);
-          }
-        }
-
-        // Normalize directory path
-        if (!dirName.endsWith('/')) dirName += '/';
-        if (!dirName.startsWith('/')) dirName = '/' + dirName;
-
-        // Update node data
-        node.dirName = dirName;
-        node.fileName = fileName;
-
+        const dirName = node.dirName || '/';
         if (!dirStructure.has(dirName)) {
           dirStructure.set(dirName, []);
         }
@@ -309,14 +273,14 @@
         }
       });
 
-      // Create file nodes
+      // Create file nodes and link them to their directories
       dirStructure.forEach((files, dirPath) => {
         const dirKey = dirNodeKeys.get(dirPath);
 
         files.forEach(node => {
           const nodeKey = keyCounter++;
           const displayName = getDisplayName(node);
-          const fullPath = node.dirName + node.fileName;
+          const fullPath = getFullPath(node);
 
           nodeDataArray.push({
             key: nodeKey,
@@ -342,18 +306,17 @@
       });
     }
 
-    // Create identical directory structures on both sides
-    createCompleteDirectoryStructure(data.nodes, -1, leftNodeMap);
-    createCompleteDirectoryStructure(data.nodes, -2, rightNodeMap);
+    // Create hierarchical structures for both sides
+    createHierarchicalStructure(data.nodes, -1, leftNodeMap);
+    createHierarchicalStructure(data.nodes, -2, rightNodeMap);
 
-    // Process original links to create mapping links between left and right trees
+    // Create mapping links between corresponding files
     if (data.links) {
       data.links.forEach(link => {
         const fromKey = leftNodeMap.get(link.from);
         const toKey = rightNodeMap.get(link.to);
 
         if (fromKey !== undefined && toKey !== undefined) {
-          // Create mapping link from left tree to right tree
           linkDataArray.push({
             from: fromKey,
             to: toKey,
@@ -367,30 +330,24 @@
   }
 
   function getDisplayName(node) {
-    let displayName = '';
-
     if (node.fileName) {
-      displayName = node.fileName;
-    } else if (node.name) {
-      displayName = node.name;
-    } else if (node.label) {
-      displayName = node.label;
-    } else if (node.id) {
-      const parts = node.id.toString().split('/');
-      displayName = parts[parts.length - 1] || node.id.toString();
-    } else {
-      displayName = 'Unknown';
+      return node.fileName.replace(/\.(tsx?|jsx?|ts|js)$/, '');
     }
+    if (node.name) return node.name;
+    if (node.label) return node.label;
+    if (node.id) {
+      const parts = node.id.toString().split('/');
+      let name = parts[parts.length - 1] || node.id.toString();
+      return name.replace(/\.(tsx?|jsx?|ts|js)$/, '');
+    }
+    return 'Unknown';
+  }
 
-    // Handle special Next.js dynamic route syntax
-    displayName = displayName
-      .replace(/\[\.\.\.([^\]]+)\]/g, '[...$1]')  // [...route] -> [...route]
-      .replace(/\[([^\]]+)\]/g, '[$1]');          // [lng] -> [lng]
-
-    // Remove file extension for cleaner display, but keep the brackets
-    displayName = displayName.replace(/\.(tsx?|jsx?|ts|js)$/, '');
-
-    return displayName;
+  function getFullPath(node) {
+    if (node.dirName && node.fileName) {
+      return node.dirName + node.fileName;
+    }
+    return node.id || 'unknown';
   }
 
   function createFallbackData() {
@@ -398,22 +355,13 @@
       nodeDataArray: [
         { isGroup: true, key: -1, text: 'Source Tree', xy: '0 0', width: 250 },
         { isGroup: true, key: -2, text: 'Target Tree', xy: '350 0', width: 250 },
-
-        // Sample data
-        { key: 0, group: -1, text: 'web/src', isDirectory: true },
-        { key: 1, group: -1, text: 'App', isFile: true, fullPath: '/web/src/App.tsx' },
-        { key: 2, group: -1, text: 'XGraph', isFile: true, fullPath: '/web/src/XGraph.ts' },
-
-        { key: 1000, group: -2, text: 'web/src', isDirectory: true },
-        { key: 1001, group: -2, text: 'App', isFile: true, fullPath: '/web/src/App.tsx' },
-        { key: 1002, group: -2, text: 'XGraph', isFile: true, fullPath: '/web/src/XGraph.ts' }
+        { key: 0, group: -1, text: 'App', isFile: true, fullPath: '/src/App.tsx' },
+        { key: 1, group: -1, text: 'Utils', isFile: true, fullPath: '/src/Utils.ts' },
+        { key: 1000, group: -2, text: 'App', isFile: true, fullPath: '/src/App.tsx' },
+        { key: 1001, group: -2, text: 'Utils', isFile: true, fullPath: '/src/Utils.ts' }
       ],
       linkDataArray: [
-        { from: 0, to: 1 },
-        { from: 0, to: 2 },
-        { from: 1000, to: 1001 },
-        { from: 1000, to: 1002 },
-        { from: 1, to: 1002, category: 'Mapping' }
+        { from: 0, to: 1001, category: 'Mapping' }
       ]
     };
   }
@@ -425,42 +373,14 @@
       const selectedFileDiv = document.getElementById('selectedFile');
       const textarea = document.getElementById('dependenciesTextarea');
 
-      console.log('DEBUG: Clicked file:', fullPath);
-      console.log('DEBUG: Node data:', node.data);
-      console.log('DEBUG: Available dependency keys:', Object.keys(dependenciesData));
-
       selectedFileDiv.textContent = `Selected: ${fullPath}`;
 
-      // Try multiple path formats to find dependencies
-      let fileDeps = null;
-      const pathsToTry = [
-        fullPath,
-        fullPath.replace(/^\//, ''),  // Remove leading slash
-        '.' + fullPath,               // Add dot prefix
-        fullPath.replace(/^\//, './'), // Convert to relative path
-        node.data.originalId,         // Try original ID
-        node.data.fileName            // Try just filename
-      ];
-
-      for (const pathToTry of pathsToTry) {
-        if (dependenciesData[pathToTry]) {
-          fileDeps = dependenciesData[pathToTry];
-          console.log('DEBUG: Found fileDeps with key:', pathToTry);
-          break;
-        }
-      }
-
-      console.log('DEBUG: Found fileDeps for', fullPath, ':', fileDeps);
-
+      const fileDeps = dependenciesData[fullPath];
       if (fileDeps) {
         const currentContent = textarea.value;
         let newContent = `# File: ${fullPath}\n`;
         let hasContent = false;
 
-        console.log('DEBUG: dependedOnBy:', fileDeps.dependedOnBy);
-        console.log('DEBUG: dependsOn:', fileDeps.dependsOn);
-
-        // Show files that depend on this file (who uses this file)
         if (fileDeps.dependedOnBy && fileDeps.dependedOnBy.length > 0) {
           newContent += `## Files that depend on this file (${fileDeps.dependedOnBy.length}):\n`;
           fileDeps.dependedOnBy.forEach(dep => {
@@ -470,7 +390,6 @@
           hasContent = true;
         }
 
-        // Show files this file depends on
         if (fileDeps.dependsOn && fileDeps.dependsOn.length > 0) {
           newContent += `## This file depends on (${fileDeps.dependsOn.length}):\n`;
           fileDeps.dependsOn.forEach(dep => {
@@ -479,48 +398,14 @@
           hasContent = true;
         }
 
-        console.log('DEBUG: hasContent:', hasContent);
-        console.log('DEBUG: newContent:', newContent);
-
-        // Only add content if there are actual dependencies
         if (hasContent) {
           if (currentContent) {
             textarea.value = currentContent + '\n\n' + newContent;
           } else {
             textarea.value = newContent;
           }
-
-          // Scroll to bottom
-          textarea.scrollTop = textarea.scrollHeight;
-        } else {
-          // Show message that no dependencies were found
-          if (currentContent) {
-            textarea.value = currentContent + '\n\n' + `# File: ${fullPath}\nNo dependencies found.\n`;
-          } else {
-            textarea.value = `# File: ${fullPath}\nNo dependencies found.\n`;
-          }
           textarea.scrollTop = textarea.scrollHeight;
         }
-      } else {
-        console.log('DEBUG: No fileDeps found for:', fullPath);
-        console.log('DEBUG: Tried paths:', pathsToTry);
-
-        // Try to find with different path formats
-        const alternativeKeys = Object.keys(dependenciesData).filter(key =>
-          key.includes(node.data.fileName) ||
-          fullPath.includes(key.replace(/^\./, '')) ||
-          key.includes(fullPath.replace(/^\//, ''))
-        );
-        console.log('DEBUG: Alternative keys found:', alternativeKeys);
-
-        // Show message that no dependencies were found
-        const currentContent = textarea.value;
-        if (currentContent) {
-          textarea.value = currentContent + '\n\n' + `# File: ${fullPath}\nNo dependencies found (searched ${pathsToTry.length} path formats).\n`;
-        } else {
-          textarea.value = `# File: ${fullPath}\nNo dependencies found (searched ${pathsToTry.length} path formats).\n`;
-        }
-        textarea.scrollTop = textarea.scrollHeight;
       }
     }
   }
@@ -533,12 +418,10 @@
 
   // Delete node function
   function deleteNode(e, button) {
-    e.handled = true; // Prevent the node click event from firing
+    e.handled = true;
     const node = button.part;
 
     if (node && node.data.group === -2) { // Only delete from Target Tree
-      console.log('DEBUG: Deleting node:', node.data);
-
       myDiagram.startTransaction('delete node');
 
       if (node.data.isFile) {
@@ -548,17 +431,17 @@
         // Delete directory and all files within it
         const nodesToDelete = [];
 
-        // Find all child nodes (files) in this directory
+        // Find all child nodes (files and subdirectories) in this directory
         myDiagram.nodes.each(n => {
-          if (n.data.group === -2 && n.data.isFile) {
-            // Check if this file is a child of the directory being deleted
+          if (n.data.group === -2 && (n.data.isFile || n.data.isDirectory)) {
+            // Check if this node is a child of the directory being deleted
             if (isChildOfDirectory(n, node)) {
               nodesToDelete.push(n);
             }
           }
         });
 
-        // Delete all child files first
+        // Delete all child nodes first
         nodesToDelete.forEach(childNode => {
           deleteNodeAndLinks(childNode);
         });
@@ -573,20 +456,15 @@
   }
 
   // Helper function to check if a node is a child of a directory
-  function isChildOfDirectory(fileNode, dirNode) {
-    // Check if the file's parent path matches the directory path
-    const filePath = fileNode.data.fullPath || '';
-    const dirPath = dirNode.data.dirPath || '';
-
-    // Also check by traversing the tree structure
-    let parent = fileNode.findTreeParentNode();
+  function isChildOfDirectory(childNode, dirNode) {
+    // Check by traversing the tree structure
+    let parent = childNode.findTreeParentNode();
     while (parent) {
       if (parent === dirNode) {
         return true;
       }
       parent = parent.findTreeParentNode();
     }
-
     return false;
   }
 
@@ -674,7 +552,7 @@
                 })
                 .bind('text', 'text')
                 .bind('stroke', 'group', k => k === -1 ? '#2c3e50' : '#8e44ad'),
-              // Delete button for Target Tree nodes (right side)
+              // Delete button for Target Tree nodes only
               go.GraphObject.build('Button', {
                   width: 16,
                   height: 16,
@@ -779,7 +657,6 @@
       });
     }
 
-    // Load and convert data
     loadData();
   }
 
@@ -825,7 +702,6 @@
     }
   }
 
-  // Initialize when DOM is loaded
   window.addEventListener('DOMContentLoaded', init);
 </script>
 
