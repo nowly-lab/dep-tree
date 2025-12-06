@@ -336,7 +336,7 @@ if [[ "$DRY_RUN" == "false" ]]; then
     print_info "The release should be available at:"
     print_info "  https://github.com/nowly-lab/dep-tree/releases/tag/$TAG"
     print_info ""
-    print_info "Homebrew formula has been automatically updated in the Formula/ directory"
+    print_info "Homebrew formula has been automatically updated in the nowly-lab/homebrew-dep-tree repository"
     print_info ""
     print_info "Users can update to the new version with:"
     print_info "  brew update"
