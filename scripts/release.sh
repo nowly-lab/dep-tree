@@ -239,16 +239,20 @@ else
     print_info "[DRY RUN] Would update version in cmd/root.go to v$VERSION"
 fi
 
-# Commit version update
+# Commit and push version update before creating tag
 if [[ "$DRY_RUN" == "false" ]]; then
     if [[ -n $(git status --porcelain cmd/root.go) ]]; then
         print_info "Committing version update..."
         git add cmd/root.go
         git commit -m "chore: bump version to v$VERSION"
         print_success "Version update committed"
+
+        print_info "Pushing version update to origin..."
+        git push origin "$CURRENT_BRANCH"
+        print_success "Version update pushed"
     fi
 else
-    print_info "[DRY RUN] Would commit version update"
+    print_info "[DRY RUN] Would commit and push version update"
 fi
 
 # Create and push tag
@@ -283,13 +287,18 @@ else
     print_success "GoReleaser configuration is valid"
 fi
 
-# Push any remaining commits (like the version bump)
+# Pull GoReleaser changes (Formula updates)
 if [[ "$DRY_RUN" == "false" ]]; then
-    print_info "Pushing any remaining commits..."
-    git push origin "$CURRENT_BRANCH"
-    print_success "All commits pushed"
+    print_info "Pulling GoReleaser changes (Formula updates)..."
+    if git pull origin "$CURRENT_BRANCH"; then
+        print_success "Successfully pulled GoReleaser changes"
+    else
+        print_warning "Failed to pull changes, but release was successful"
+        print_info "You may need to manually sync your local repository:"
+        print_info "  git pull origin $CURRENT_BRANCH"
+    fi
 else
-    print_info "[DRY RUN] Would push commits to origin"
+    print_info "[DRY RUN] Would pull GoReleaser changes"
 fi
 
 print_success "Release process completed successfully!"
