@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tree Mapper - Dependency Visualization</title>
+<style>
+  body {
+    margin: 0;
+    padding: 0;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    font-family: Arial, sans-serif;
+    display: flex;
+  }
+
+  .left-panel {
+    width: 30%;
+    height: 100vh;
+    background: #f8f9fa;
+    padding: 15px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .right-panel {
+    width: 70%;
+    height: 100vh;
+    background: white;
+    position: relative;
+  }
+
+  .dependencies-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .dependencies-title {
+    font-size: 16px;
+    font-weight: bold;
+    margin-bottom: 10px;
+    color: #2c3e50;
+  }
+
+  .selected-file {
+    font-size: 12px;
+    margin-bottom: 10px;
+    padding: 8px;
+    background: #e3f2fd;
+    border-radius: 4px;
+    color: #1976d2;
+    min-height: 20px;
+  }
+
+  .dependencies-textarea {
+    flex: 1;
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    resize: none;
+    background: white;
+    box-sizing: border-box;
+  }
+
+  .controls {
+    margin-top: 10px;
+    display: flex;
+    gap: 8px;
+  }
+
+  .clear-button {
+    padding: 6px 12px;
+    background-color: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+  }
+
+  .clear-button:hover {
+    background-color: #c82333;
+  }
+
+  .diagram-container {
+    width: 100%;
+    height: 100%;
+    border: none;
+    background: white;
+  }
+
+  .info {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: rgba(255, 255, 255, 0.9);
+    padding: 10px;
+    border-radius: 5px;
+    font-family: Arial, sans-serif;
+    font-size: 12px;
+    z-index: 1000;
+  }
+</style>
+</head>
+<body>
+<script src="https://cdn.jsdelivr.net/npm/gojs@3.1.2/release/go-debug.js"></script>
+
+<script>
+  // Global variables
+  let myDiagram;
+  let ROUTINGSTYLE = 'Normal';
+  let dependenciesData = {};
+
+  // Data placeholder - will be replaced by Go template
+  var graphData = __INLINE_DATA__;
+
+  // TreeNode class for handling collapsed node visibility
+  class TreeNode extends go.Node {
+    constructor(init) {
+      super();
+      if (init) Object.assign(this, init);
+    }
+
+    findVisibleNode() {
+      var n = this;
+      while (n !== null && !n.isVisible()) {
+        n = n.findTreeParentNode();
+      }
+      return n;
+    }
+  }
+
+  // MappingLink class for custom routing
+  class MappingLink extends go.Link {
+    constructor(init) {
+      super();
+      if (init) Object.assign(this, init);
+    }
+
+    getLinkPoint(node, port, spot, from, ortho, othernode, otherport) {
+      if (ROUTINGSTYLE !== 'ToGroup') {
+        return super.getLinkPoint(node, port, spot, from, ortho, othernode, otherport);
+      } else {
+        var r = port.getDocumentBounds();
+        var group = node.containingGroup;
+        var b = group !== null ? group.actualBounds : node.actualBounds;
+        var op = othernode.getDocumentPoint(go.Spot.Center);
+        var x = op.x > r.centerX ? b.right : b.left;
+        return new go.Point(x, r.centerY);
+      }
+    }
+
+    computePoints() {
+      var result = super.computePoints();
+      if (result && ROUTINGSTYLE === 'ToNode') {
+        var fn = this.fromNode;
+        var tn = this.toNode;
+        if (fn && tn) {
+          var fg = fn.containingGroup;
+          var fb = fg ? fg.actualBounds : fn.actualBounds;
+          var fpt = this.getPoint(0);
+          var tg = tn.containingGroup;
+          var tb = tg ? tg.actualBounds : tn.actualBounds;
+          var tpt = this.getPoint(this.pointsCount - 1);
+          this.setPoint(1, new go.Point(fpt.x < tpt.x ? fb.right : fb.left, fpt.y));
+          this.setPoint(
+            this.pointsCount - 2,
+            new go.Point(fpt.x < tpt.x ? tb.left : tb.right, tpt.y)
+          );
+        }
+      }
+      return result;
+    }
+  }
+
+  // Convert dependency graph data to tree mapper format
+  function convertToTreeMapperData(data) {
+    if (!data || !data.nodes) {
+      return createFallbackData();
+    }
+
+    const nodeDataArray = [
+      { isGroup: true, key: -1, text: 'Source Tree', xy: '0 0', width: 250 },
+      { isGroup: true, key: -2, text: 'Target Tree', xy: '350 0', width: 250 }
+    ];
+
+    const linkDataArray = [];
+    const leftNodeMap = new Map();  // Maps original ID to left side key
+    const rightNodeMap = new Map(); // Maps original ID to right side key
+    let keyCounter = 0;
+
+    // Build dependencies data for quick lookup using fileDependencies
+    dependenciesData = {};
+    console.log('DEBUG: Raw data.fileDependencies:', data.fileDependencies);
+    if (data.fileDependencies) {
+      Object.keys(data.fileDependencies).forEach(fileName => {
+        const deps = data.fileDependencies[fileName];
+        dependenciesData[fileName] = {
+          dependsOn: deps.dependsOn || [],
+          dependedOnBy: deps.dependedOnBy || []
+        };
+        console.log(`DEBUG: Processed ${fileName}:`, dependenciesData[fileName]);
+      });
+    }
+    console.log('DEBUG: Final dependenciesData:', dependenciesData);
+
+    // Create complete directory structure for one side
+    function createCompleteDirectoryStructure(nodes, groupId, nodeMap) {
+      const dirStructure = new Map();
+      const dirNodeKeys = new Map();
+
+      // Group files by directory
+      nodes.forEach(node => {
+        const dirName = node.dirName || '/';
+        if (!dirStructure.has(dirName)) {
+          dirStructure.set(dirName, []);
+        }
+        dirStructure.get(dirName).push(node);
+      });
+
+      // Sort directories by depth (parent directories first)
+      const sortedDirs = Array.from(dirStructure.keys()).sort((a, b) => {
+        const depthA = (a.match(/\//g) || []).length;
+        const depthB = (b.match(/\//g) || []).length;
+        return depthA - depthB;
+      });
+
+      // Create root node for the tree
+      const rootKey = keyCounter++;
+      nodeDataArray.push({
+        key: rootKey,
+        group: groupId,
+        text: 'web/src',
+        isDirectory: true,
+        dirPath: '/web/src/'
+      });
+      dirNodeKeys.set('/web/src/', rootKey);
+
+      // Create directory nodes and file nodes
+      sortedDirs.forEach(dirPath => {
+        const files = dirStructure.get(dirPath);
+        let dirNodeKey = dirNodeKeys.get(dirPath);
+
+        // Create directory node if it doesn't exist
+        if (!dirNodeKey && dirPath !== '/web/src/') {
+          const dirName = dirPath.split('/').filter(p => p).pop() || 'root';
+          dirNodeKey = keyCounter++;
+
+          nodeDataArray.push({
+            key: dirNodeKey,
+            group: groupId,
+            text: dirName,
+            isDirectory: true,
+            dirPath: dirPath
+          });
+
+          dirNodeKeys.set(dirPath, dirNodeKey);
+
+          // Link to parent directory
+          const parentPath = dirPath.substring(0, dirPath.lastIndexOf('/')) || '/web/src/';
+          const parentKey = dirNodeKeys.get(parentPath);
+          if (parentKey !== undefined) {
+            linkDataArray.push({
+              from: parentKey,
+              to: dirNodeKey
+            });
+          }
+        }
+
+        // Create file nodes
+        files.forEach(node => {
+          const nodeKey = keyCounter++;
+          const displayName = getDisplayName(node);
+          const fullPath = node.dirName + node.fileName;
+
+          nodeDataArray.push({
+            key: nodeKey,
+            group: groupId,
+            text: displayName,
+            originalId: node.id,
+            fileName: node.fileName,
+            dirName: node.dirName,
+            fullPath: fullPath,
+            isFile: true
+          });
+
+          nodeMap.set(node.id, nodeKey);
+
+          // Link file to its directory
+          const parentDirKey = dirNodeKey || dirNodeKeys.get('/web/src/');
+          if (parentDirKey !== undefined) {
+            linkDataArray.push({
+              from: parentDirKey,
+              to: nodeKey
+            });
+          }
+        });
+      });
+    }
+
+    // Create identical directory structures on both sides
+    createCompleteDirectoryStructure(data.nodes, -1, leftNodeMap);
+    createCompleteDirectoryStructure(data.nodes, -2, rightNodeMap);
+
+    // Process original links to create mapping links between left and right trees
+    if (data.links) {
+      data.links.forEach(link => {
+        const fromKey = leftNodeMap.get(link.from);
+        const toKey = rightNodeMap.get(link.to);
+
+        if (fromKey !== undefined && toKey !== undefined) {
+          // Create mapping link from left tree to right tree
+          linkDataArray.push({
+            from: fromKey,
+            to: toKey,
+            category: 'Mapping'
+          });
+        }
+      });
+    }
+
+    return { nodeDataArray, linkDataArray };
+  }
+
+  function getDisplayName(node) {
+    if (node.fileName) {
+      // Remove file extension for cleaner display
+      return node.fileName.replace(/\.(tsx?|jsx?|ts|js)$/, '');
+    }
+    if (node.name) return node.name;
+    if (node.label) return node.label;
+    if (node.id) {
+      const parts = node.id.toString().split('/');
+      let name = parts[parts.length - 1] || node.id.toString();
+      return name.replace(/\.(tsx?|jsx?|ts|js)$/, '');
+    }
+    return 'Unknown';
+  }
+
+  function createFallbackData() {
+    return {
+      nodeDataArray: [
+        { isGroup: true, key: -1, text: 'Source Tree', xy: '0 0', width: 250 },
+        { isGroup: true, key: -2, text: 'Target Tree', xy: '350 0', width: 250 },
+
+        // Sample data
+        { key: 0, group: -1, text: 'web/src', isDirectory: true },
+        { key: 1, group: -1, text: 'App', isFile: true, fullPath: '/web/src/App.tsx' },
+        { key: 2, group: -1, text: 'XGraph', isFile: true, fullPath: '/web/src/XGraph.ts' },
+
+        { key: 1000, group: -2, text: 'web/src', isDirectory: true },
+        { key: 1001, group: -2, text: 'App', isFile: true, fullPath: '/web/src/App.tsx' },
+        { key: 1002, group: -2, text: 'XGraph', isFile: true, fullPath: '/web/src/XGraph.ts' }
+      ],
+      linkDataArray: [
+        { from: 0, to: 1 },
+        { from: 0, to: 2 },
+        { from: 1000, to: 1001 },
+        { from: 1000, to: 1002 },
+        { from: 1, to: 1002, category: 'Mapping' }
+      ]
+    };
+  }
+
+  // Handle node click to show dependencies
+  function handleNodeClick(e, node) {
+    if (node.data.isFile) {
+      const fullPath = node.data.fullPath;
+      const selectedFileDiv = document.getElementById('selectedFile');
+      const textarea = document.getElementById('dependenciesTextarea');
+
+      console.log('DEBUG: Clicked file:', fullPath);
+      console.log('DEBUG: Node data:', node.data);
+      console.log('DEBUG: Available dependency keys:', Object.keys(dependenciesData));
+
+      selectedFileDiv.textContent = `Selected: ${fullPath}`;
+
+      // Get dependencies for this file
+      const fileDeps = dependenciesData[fullPath];
+      console.log('DEBUG: Found fileDeps for', fullPath, ':', fileDeps);
+
+      if (fileDeps) {
+        const currentContent = textarea.value;
+        let newContent = `# File: ${fullPath}\n`;
+        let hasContent = false;
+
+        console.log('DEBUG: dependedOnBy:', fileDeps.dependedOnBy);
+        console.log('DEBUG: dependsOn:', fileDeps.dependsOn);
+
+        // Show files that depend on this file (who uses this file)
+        if (fileDeps.dependedOnBy && fileDeps.dependedOnBy.length > 0) {
+          newContent += `## Files that depend on this file (${fileDeps.dependedOnBy.length}):\n`;
+          fileDeps.dependedOnBy.forEach(dep => {
+            newContent += `${dep}\n`;
+          });
+          newContent += '\n';
+          hasContent = true;
+        }
+
+        // Show files this file depends on
+        if (fileDeps.dependsOn && fileDeps.dependsOn.length > 0) {
+          newContent += `## This file depends on (${fileDeps.dependsOn.length}):\n`;
+          fileDeps.dependsOn.forEach(dep => {
+            newContent += `${dep}\n`;
+          });
+          hasContent = true;
+        }
+
+        console.log('DEBUG: hasContent:', hasContent);
+        console.log('DEBUG: newContent:', newContent);
+
+        // Only add content if there are actual dependencies
+        if (hasContent) {
+          if (currentContent) {
+            textarea.value = currentContent + '\n\n' + newContent;
+          } else {
+            textarea.value = newContent;
+          }
+
+          // Scroll to bottom
+          textarea.scrollTop = textarea.scrollHeight;
+        }
+      } else {
+        console.log('DEBUG: No fileDeps found for:', fullPath);
+        console.log('DEBUG: Trying alternative keys...');
+
+        // Try to find with different path formats
+        const alternativeKeys = Object.keys(dependenciesData).filter(key =>
+          key.includes(node.data.fileName) ||
+          fullPath.includes(key.replace(/^\./, ''))
+        );
+        console.log('DEBUG: Alternative keys found:', alternativeKeys);
+      }
+    }
+  }
+
+  // Clear dependencies textarea
+  function clearDependencies() {
+    document.getElementById('dependenciesTextarea').value = '';
+    document.getElementById('selectedFile').textContent = 'Click on a file to see its dependencies';
+  }
+
+  // Initialize diagram
+  function init() {
+    function handleTreeCollapseExpand(e) {
+      e.subject.each(n => {
+        n.findExternalTreeLinksConnected().each(l => l.invalidateRoute());
+      });
+    }
+
+    myDiagram = new go.Diagram('myDiagramDiv', {
+      'commandHandler.copiesTree': true,
+      'commandHandler.deletesTree': true,
+      TreeCollapsed: handleTreeCollapseExpand,
+      TreeExpanded: handleTreeCollapseExpand,
+      'linkingTool.archetypeLinkData': { category: 'Mapping' },
+      'linkingTool.linkValidation': checkLink,
+      'relinkingTool.linkValidation': checkLink,
+      'undoManager.isEnabled': true,
+      ModelChanged: e => {
+        if (e.isTransactionFinished) {
+          updateStatus();
+        }
+      }
+    });
+
+    function checkLink(fn, fp, tn, tp, link) {
+      if (fn.containingGroup === null || fn.containingGroup.data.key !== -1) return false;
+      if (tn.containingGroup === null || tn.containingGroup.data.key !== -2) return false;
+      return true;
+    }
+
+    // Node template
+    myDiagram.nodeTemplate =
+      new TreeNode({
+          movable: false,
+          copyable: false,
+          deletable: false,
+          selectionAdorned: false,
+          background: 'white',
+          mouseEnter: (e, node) => (node.background = 'aquamarine'),
+          mouseLeave: (e, node) => (node.background = node.isSelected ? 'skyblue' : 'white'),
+          click: handleNodeClick
+        })
+        .bindObject('background', 'isSelected', s => s ? 'skyblue' : 'white')
+        .bind('fromLinkable', 'group', k => k === -1)
+        .bind('toLinkable', 'group', k => k === -2)
+        .add(
+          go.GraphObject.build('TreeExpanderButton', {
+              width: 14,
+              height: 14,
+              'ButtonIcon.stroke': 'white',
+              'ButtonIcon.strokeWidth': 2,
+              'ButtonBorder.fill': 'goldenrod',
+              'ButtonBorder.stroke': null,
+              'ButtonBorder.figure': 'Rectangle',
+              _buttonFillOver: 'darkgoldenrod',
+              _buttonStrokeOver: null
+            }),
+          new go.Panel('Horizontal', { position: new go.Point(16, 0) })
+            .add(
+              new go.TextBlock({
+                  font: '12px sans-serif',
+                  margin: new go.Margin(2, 4, 2, 2)
+                })
+                .bind('text', 'text')
+                .bind('stroke', 'group', k => k === -1 ? '#2c3e50' : '#8e44ad')
+            )
+        );
+
+    // Tree links
+    myDiagram.linkTemplate =
+      new go.Link({
+          selectable: false,
+          routing: go.Routing.Orthogonal,
+          fromEndSegmentLength: 4,
+          toEndSegmentLength: 4,
+          fromSpot: new go.Spot(0.001, 1, 7, 0),
+          toSpot: go.Spot.Left
+        })
+        .add(new go.Shape({ stroke: 'lightgray', strokeWidth: 1 }));
+
+    // Mapping links
+    myDiagram.linkTemplateMap.add('Mapping',
+      new MappingLink({
+          isTreeLink: false,
+          isLayoutPositioned: false,
+          layerName: 'Foreground',
+          fromSpot: go.Spot.Right,
+          toSpot: go.Spot.Left,
+          relinkableFrom: true,
+          relinkableTo: true
+        })
+        .add(
+          new go.Shape({
+            stroke: 'blue',
+            strokeWidth: 2,
+            opacity: 0.8
+          }),
+          new go.Shape({
+            toArrow: 'Standard',
+            fill: 'blue',
+            stroke: null,
+            scale: 1.2
+          })
+        )
+    );
+
+    // Group template
+    myDiagram.groupTemplate =
+      new go.Group('Auto', {
+          deletable: false,
+          layout: makeGroupLayout(),
+          selectionAdorned: false
+        })
+        .bindTwoWay('position', 'xy', go.Point.parse, go.Point.stringify)
+        .bind('layout', 'width', makeGroupLayout)
+        .add(
+          new go.Shape({
+            fill: 'white',
+            stroke: 'lightgray',
+            strokeWidth: 1
+          }),
+          new go.Panel('Vertical', { defaultAlignment: go.Spot.Left })
+            .add(
+              new go.TextBlock({
+                  font: 'bold 14pt sans-serif',
+                  margin: new go.Margin(5, 5, 0, 5),
+                  stroke: '#2c3e50'
+                })
+                .bind('text'),
+              new go.Placeholder({ padding: 5 })
+            )
+        );
+
+    function makeGroupLayout() {
+      return new go.TreeLayout({
+        alignment: go.TreeAlignment.Start,
+        angle: 0,
+        compaction: go.TreeCompaction.None,
+        layerSpacing: 16,
+        layerSpacingParentOverlap: 1,
+        nodeIndentPastParent: 1.0,
+        nodeSpacing: 0,
+        setsPortSpot: false,
+        setsChildPortSpot: false,
+        commitNodes: function () {
+          go.TreeLayout.prototype.commitNodes.call(this);
+          if (ROUTINGSTYLE === 'ToGroup') {
+            updateNodeWidths(this.group, this.group.data.width || 100);
+          }
+        }
+      });
+    }
+
+    // Load and convert data
+    loadData();
+  }
+
+  function loadData() {
+    try {
+      const convertedData = convertToTreeMapperData(graphData);
+      myDiagram.model = new go.GraphLinksModel(convertedData.nodeDataArray, convertedData.linkDataArray);
+      updateStatus();
+    } catch (error) {
+      console.error('Error loading data:', error);
+      const fallbackData = createFallbackData();
+      myDiagram.model = new go.GraphLinksModel(fallbackData.nodeDataArray, fallbackData.linkDataArray);
+      updateStatus();
+    }
+  }
+
+  function updateStatus() {
+    const model = myDiagram.model;
+    const nodeCount = model.nodeDataArray.filter(n => !n.isGroup).length;
+    const mappingCount = model.linkDataArray.filter(l => l.category === 'Mapping').length;
+
+    document.getElementById('nodeCount').textContent = nodeCount;
+    document.getElementById('mappingCount').textContent = mappingCount;
+  }
+
+  function updateNodeWidths(group, width) {
+    if (isNaN(width)) {
+      group.memberParts.each(n => {
+        if (n instanceof go.Node) n.width = NaN;
+      });
+    } else {
+      var minx = Infinity;
+      group.memberParts.each(n => {
+        if (n instanceof go.Node) {
+          minx = Math.min(minx, n.actualBounds.x);
+        }
+      });
+      if (minx === Infinity) return;
+      var right = minx + width;
+      group.memberParts.each(n => {
+        if (n instanceof go.Node) n.width = Math.max(0, right - n.actualBounds.x);
+      });
+    }
+  }
+
+  // Initialize when DOM is loaded
+  window.addEventListener('DOMContentLoaded', init);
+</script>
+
+<div class="left-panel">
+  <div class="dependencies-section">
+    <div class="dependencies-title">File Dependencies</div>
+    <div id="selectedFile" class="selected-file">Click on a file to see its dependencies</div>
+    <textarea id="dependenciesTextarea" class="dependencies-textarea" placeholder="Dependencies will appear here when you click on files..."></textarea>
+    <div class="controls">
+      <button class="clear-button" onclick="clearDependencies()">Clear</button>
+    </div>
+  </div>
+</div>
+
+<div class="right-panel">
+  <div id="myDiagramDiv" class="diagram-container"></div>
+
+  <div class="info">
+    <div>Routing style: "Normal"</div>
+    <div>Tree mapper with dependency visualization</div>
+    <div>Nodes: <span id="nodeCount">0</span></div>
+    <div>Mappings: <span id="mappingCount">0</span></div>
+  </div>
+</div>
+
+</body>
+</html>

@@ -22,6 +22,7 @@ func EntropyCmd(cfgF func() (*config.Config, error)) *cobra.Command {
 	var deleteUnused bool
 	var excludeFromDelete []string
 	var commentAllDelete bool
+	var useGoJS bool
 
 	cmd := &cobra.Command{
 		Use:     "entropy",
@@ -58,6 +59,7 @@ func EntropyCmd(cfgF func() (*config.Config, error)) *cobra.Command {
 				DeleteUnused:      deleteUnused,
 				ExcludeFromDelete: excludeFromDelete,
 				CommentAllDelete:  commentAllDelete,
+				UseGoJS:           useGoJS,
 			})
 			return err
 		},
@@ -75,6 +77,7 @@ func EntropyCmd(cfgF func() (*config.Config, error)) *cobra.Command {
 	cmd.Flags().BoolVar(&deleteUnused, "delete-unused", false, "Deletes files that have 0 file_is_used_by entries (files that are not used by any other files)")
 	cmd.Flags().StringArrayVar(&excludeFromDelete, "exclude-from-delete", nil, "Files matching these patterns will be included in dependency analysis but excluded from deletion by --delete-unused. You can provide multiple patterns.")
 	cmd.Flags().BoolVar(&commentAllDelete, "comment-all-delete", false, "Removes all relate_file comments from all files in the project. Useful for cleaning up before commits when team approval is pending.")
+	cmd.Flags().BoolVar(&useGoJS, "gojs", false, "Use GoJS for directory tree visualization instead of Three.js")
 
 	return cmd
 }

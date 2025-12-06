@@ -34,8 +34,11 @@ type GraphWithSummary struct {
 //go:embed generated/index.html
 var index []byte
 
-const ToReplace = `"__INLINE_DATA",{}`
-const ReplacePrefix = `"__INLINE_DATA",`
+//go:embed generated/tree_mapper_template.html
+var gojsTemplate []byte
+
+const ToReplace = `__INLINE_DATA__`
+const ReplacePrefix = ``
 
 type RenderConfig struct {
 	NoOpen            bool
@@ -51,6 +54,7 @@ type RenderConfig struct {
 	DeleteUnused      bool     // If true, deletes files that have 0 file_is_used_by entries
 	ExcludeFromDelete []string // Files matching these patterns will be excluded from deletion but included in dependency analysis
 	CommentAllDelete  bool     // If true, removes all relate_file comments from all files
+	UseGoJS           bool     // If true, uses GoJS for directory tree visualization instead of Three.js
 }
 
 func Render(files []string, parser graph.NodeParser[*language.FileInfo], cfg RenderConfig) error {
@@ -60,9 +64,9 @@ func Render(files []string, parser graph.NodeParser[*language.FileInfo], cfg Ren
 	}
 	graph3d.EnableGui = cfg.EnableGui
 
-	// Build file dependencies for summary, write, remove-relate, delete-unused, or comment-all-delete operations
+	// Build file dependencies for summary, write, remove-relate, delete-unused, comment-all-delete, or GoJS operations
 	var fileDependencies map[string]FileDependencies
-	if cfg.Summary || cfg.Write || cfg.RemoveRelate || cfg.DeleteUnused || cfg.CommentAllDelete || cfg.OutputJson || cfg.OutputYaml {
+	if cfg.Summary || cfg.Write || cfg.RemoveRelate || cfg.DeleteUnused || cfg.CommentAllDelete || cfg.OutputJson || cfg.OutputYaml || cfg.UseGoJS {
 		// Create a map of node IDs to file names for quick lookup
 		nodeIdToFileName := make(map[int64]string)
 		for _, node := range graph3d.Nodes {
@@ -242,20 +246,46 @@ func Render(files []string, parser graph.NodeParser[*language.FileInfo], cfg Ren
 		return nil
 	}
 
-	// For HTML output, just marshal the graph3d
-	marshaled, err := json.Marshal(graph3d)
-	if err != nil {
-		return err
+	// Choose template and data format based on UseGoJS flag
+	var rendered []byte
+	var temp string
+
+	var marshaled []byte
+
+	if cfg.UseGoJS {
+		// Use GoJS template with enhanced data including fileDependencies
+		if fileDependencies != nil {
+			enhancedOutput := GraphWithSummary{
+				Graph:            graph3d,
+				FileDependencies: fileDependencies,
+			}
+			marshaled, err = json.Marshal(enhancedOutput)
+		} else {
+			marshaled, err = json.Marshal(graph3d)
+		}
+		if err != nil {
+			return err
+		}
+		rendered = bytes.ReplaceAll(gojsTemplate, []byte(ToReplace), append([]byte(ReplacePrefix), marshaled...))
+		if cfg.RenderPath != "" {
+			temp = cfg.RenderPath
+		} else {
+			temp = filepath.Join(os.TempDir(), "treeMapper.html")
+		}
+	} else {
+		// Use Three.js template with normal graph data
+		marshaled, err = json.Marshal(graph3d)
+		if err != nil {
+			return err
+		}
+		rendered = bytes.ReplaceAll(index, []byte(ToReplace), append([]byte(ReplacePrefix), marshaled...))
+		if cfg.RenderPath != "" {
+			temp = cfg.RenderPath
+		} else {
+			temp = filepath.Join(os.TempDir(), "index.html")
+		}
 	}
 
-	// Otherwise, proceed with the original HTML embedding logic
-	rendered := bytes.ReplaceAll(index, []byte(ToReplace), append([]byte(ReplacePrefix), marshaled...))
-	var temp string
-	if cfg.RenderPath != "" {
-		temp = cfg.RenderPath
-	} else {
-		temp = filepath.Join(os.TempDir(), "index.html")
-	}
 	err = os.WriteFile(temp, rendered, 0o600)
 	if err != nil {
 		return err
