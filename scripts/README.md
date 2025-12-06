@@ -115,6 +115,18 @@ Automated release script that handles version tagging and Homebrew release via G
 4. **"Tag already exists"**:
    Use `--force` flag to overwrite existing tag, or choose a different version.
 
+### Installation Instructions for Users
+
+```bash
+# Install nowly-tree
+brew tap nowly-lab/dep-tree https://github.com/nowly-lab/dep-tree
+brew install nowly-tree
+
+# Update to latest version
+brew update
+brew upgrade nowly-tree
+```
+
 ### Manual Release (if script fails)
 
 If the automated script fails, you can run the steps manually:

@@ -348,10 +348,10 @@ if [[ "$DRY_RUN" == "false" ]]; then
     print_info "  brew upgrade nowly-tree"
     print_info ""
     print_info "Or install fresh with:"
-    print_info "  brew tap nowly-lab/dep-tree"
+    print_info "  brew tap nowly-lab/dep-tree https://github.com/nowly-lab/dep-tree"
     print_info "  brew install nowly-tree"
     print_info ""
     print_info "Note: It may take a few minutes for the Homebrew tap to reflect the changes."
     print_info "If users don't see the update immediately, they can run:"
-    print_info "  brew untap nowly-lab/dep-tree && brew tap nowly-lab/dep-tree"
+    print_info "  brew untap nowly-lab/dep-tree && brew tap nowly-lab/dep-tree https://github.com/nowly-lab/dep-tree"
 fi
