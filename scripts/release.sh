@@ -232,9 +232,18 @@ print_success "All required tools are available"
 # Update version in cmd/root.go
 print_info "Updating version in cmd/root.go..."
 if [[ "$DRY_RUN" == "false" ]]; then
-    sed -i.bak "s/Version:.*\"v[0-9]\+\.[0-9]\+\.[0-9]\+\"/Version:           \"v$VERSION\"/" cmd/root.go
+    # Use a more precise sed pattern to match the exact format
+    sed -i.bak 's/Version:[[:space:]]*"v[0-9]\+\.[0-9]\+\.[0-9]\+"/Version:           "v'$VERSION'"/' cmd/root.go
     rm cmd/root.go.bak
     print_success "Version updated in cmd/root.go"
+
+    # Verify the update was successful
+    if grep -q "Version:.*\"v$VERSION\"" cmd/root.go; then
+        print_success "Version verification successful: v$VERSION"
+    else
+        print_error "Version update failed - version not found in cmd/root.go"
+        exit 1
+    fi
 else
     print_info "[DRY RUN] Would update version in cmd/root.go to v$VERSION"
 fi
@@ -287,18 +296,31 @@ else
     print_success "GoReleaser configuration is valid"
 fi
 
-# Pull GoReleaser changes (Formula updates)
+# Pull GoReleaser changes (Formula updates) and sync local repository
 if [[ "$DRY_RUN" == "false" ]]; then
-    print_info "Pulling GoReleaser changes (Formula updates)..."
-    if git pull origin "$CURRENT_BRANCH"; then
-        print_success "Successfully pulled GoReleaser changes"
+    print_info "Syncing local repository with GoReleaser changes..."
+
+    # Fetch all changes from remote
+    git fetch origin
+
+    # Check if there are new commits on the remote branch
+    LOCAL_COMMIT=$(git rev-parse HEAD)
+    REMOTE_COMMIT=$(git rev-parse origin/"$CURRENT_BRANCH")
+
+    if [[ "$LOCAL_COMMIT" != "$REMOTE_COMMIT" ]]; then
+        print_info "New commits detected on remote, pulling changes..."
+        if git pull origin "$CURRENT_BRANCH" --rebase; then
+            print_success "Successfully synced with remote repository"
+        else
+            print_warning "Failed to sync with remote, but release was successful"
+            print_info "Manual sync may be required:"
+            print_info "  git pull origin $CURRENT_BRANCH"
+        fi
     else
-        print_warning "Failed to pull changes, but release was successful"
-        print_info "You may need to manually sync your local repository:"
-        print_info "  git pull origin $CURRENT_BRANCH"
+        print_info "Local repository is already up to date"
     fi
 else
-    print_info "[DRY RUN] Would pull GoReleaser changes"
+    print_info "[DRY RUN] Would sync local repository with remote changes"
 fi
 
 print_success "Release process completed successfully!"
@@ -312,7 +334,17 @@ if [[ "$DRY_RUN" == "false" ]]; then
     print_info "The release should be available at:"
     print_info "  https://github.com/nowly-lab/dep-tree/releases/tag/$TAG"
     print_info ""
-    print_info "Homebrew formula will be automatically updated in the Formula/ directory"
-    print_info "Users can install the new version with:"
+    print_info "Homebrew formula has been automatically updated in the Formula/ directory"
+    print_info ""
+    print_info "Users can update to the new version with:"
+    print_info "  brew update"
     print_info "  brew upgrade nowly-tree"
+    print_info ""
+    print_info "Or install fresh with:"
+    print_info "  brew tap nowly-lab/dep-tree"
+    print_info "  brew install nowly-tree"
+    print_info ""
+    print_info "Note: It may take a few minutes for the Homebrew tap to reflect the changes."
+    print_info "If users don't see the update immediately, they can run:"
+    print_info "  brew untap nowly-lab/dep-tree && brew tap nowly-lab/dep-tree"
 fi
