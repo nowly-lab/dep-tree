@@ -119,7 +119,7 @@ Automated release script that handles version tagging and Homebrew release via G
 
 ```bash
 # Install nowly-tree
-brew tap nowly-lab/dep-tree https://github.com/nowly-lab/dep-tree
+brew tap nowly-lab/dep-tree
 brew install nowly-tree
 
 # Update to latest version

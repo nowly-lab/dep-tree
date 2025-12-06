@@ -39,9 +39,8 @@ brews:
     license: MIT
     repository:
       owner: nowly-lab
-      name: dep-tree
+      name: homebrew-dep-tree
       branch: main
-    directory: Formula
     commit_author:
       name: goreleaserbot
       email: bot@goreleaser.com
