@@ -1,13 +1,26 @@
+version: 2
+
 before:
   hooks:
     - go mod tidy
 builds:
-  - env:
+  - id: nowly-tree
+    binary: nowly-tree
+    env:
       - CGO_ENABLED=0
     goos:
       - linux
       - windows
       - darwin
+archives:
+  - name_template: "{{ .Binary }}_{{ .Os }}_{{ .Arch }}"
+    format: tar.gz
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - LICENSE
+      - README.md
 
 checksum:
   name_template: 'checksums.txt'
@@ -20,8 +33,12 @@ changelog:
       - '^docs:'
       - '^test:'
 brews:
-  - name: 'dep-tree'
-    homepage: https://github.com/gabotechs/dep-tree
+  - name: 'nowly-tree'
+    homepage: https://github.com/nowly-lab/dep-tree
+    description: "Nowly Lab's Homebrew distribution of dep-tree."
+    license: MIT
     repository:
-      owner: gabotechs
-      name: homebrew-taps
+      owner: nowly-lab
+      name: homebrew-nowly
+    test: |
+      system "#{bin}/nowly-tree", "--version"
