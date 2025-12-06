@@ -25,8 +25,12 @@
 </p>
 
 <p align="center">
-    Ensure your code base decoupling by creating your own rules and enforcing them with <code>dep-tree check</code>
+    Ensure your code base decoupling by creating your own rules and enforcing them with <code>nowly-tree check</code>
 </p>
+
+> [!NOTE]
+> This repository is Nowly Lab's maintained fork of [dep-tree](https://github.com/gabotechs/dep-tree).  
+> We ship the CLI via Homebrew as `nowly-tree` so it can coexist globally with the upstream `dep-tree` formula.
 
 ## Checkout the entropy graph of well-known projects
 
@@ -63,11 +67,14 @@ Contributions are always welcome!
 
 ## Install
 
-On Mac and Linux, it can be installed using brew:
+On macOS and Linux you can install Nowly's fork via our tap, which publishes the binary as `nowly-tree`:
 
 ```shell
-brew install dep-tree
+brew tap nowly-lab/dep-tree https://github.com/nowly-lab/dep-tree
+brew install nowly-tree
 ```
+
+If you also want the upstream CLI, install it separately via `brew install dep-tree`.
 
 Alternatively, on any platform including Windows it can be installed with `pip`...
 
@@ -83,7 +90,7 @@ npm install @dep-tree/cli
 
 ## About Dep Tree
 
-`dep-tree` is a cli tool for visualizing the complexity of a code base, and creating
+`nowly-tree` is Nowly Lab's Homebrew-distributed build of the `dep-tree` CLI for visualizing the complexity of a code base and creating
 rules for ensuring its loosely coupling.
 
 It works with files, meaning that each file is a node in the dependency tree:
@@ -111,13 +118,13 @@ It works with files, meaning that each file is a node in the dependency tree:
 Choose the file that will act as the root of the dependency graph (for example `src/index.ts`), and run:
 
 ```shell
-dep-tree entropy src/index.ts
+nowly-tree entropy src/index.ts
 ```
 
 You can also pass multiple files if you don't have a single entrypoint:
 
 ```shell
-dep-tree entropy src/*
+nowly-tree entropy src/*
 ```
 
 It will open a browser window and will render your file dependency graph using a 3d force-directed graph.
@@ -150,12 +157,12 @@ Given two pieces of code, displays what are the dependencies between them. These
 of code are specified using a glob patterns, for example:
 
 ```shell
-dep-tree explain 'src/products/**/*.go' 'src/orders/**/*.go'
+nowly-tree explain 'src/products/**/*.go' 'src/orders/**/*.go'
 ```
 
 > [!WARNING]  
 > Make sure you wrap the two glob patterns with single quotes ('') or double quotes (""),
-> otherwise your shell might expand the globstars, and `dep-tree explain` will receive
+> otherwise your shell might expand the globstars, and `nowly-tree explain` will receive
 > an incorrect number of arguments.
 
 
@@ -176,7 +183,7 @@ Additionally, the `--overlap-left` (`-l`) or `--overlap-right` (`-r`) arguments 
   external dependencies of a specific folder: 
 ```shell
 # Retrieves dependencies from files in src/products to any other file that is not inside src/products
-dep-tree explain 'src/products/**/*.go' '**/*.go' --overlap-left
+nowly-tree explain 'src/products/**/*.go' '**/*.go' --overlap-left
 ```
 
 - `--overlap-right`: when the left and right glob patterns have some files in common, keep only the
@@ -184,7 +191,7 @@ dep-tree explain 'src/products/**/*.go' '**/*.go' --overlap-left
   any file outside a specific folder that depends on that folder.
 ```shell
 # Retrieves dependencies from any folder but src/products that point to files inside src/products
-dep-tree explain '**/*.go' 'src/products/**/*.go' --overlap-right
+nowly-tree explain '**/*.go' 'src/products/**/*.go' --overlap-right
 ```
 
 ### Tree
@@ -192,7 +199,7 @@ dep-tree explain '**/*.go' 'src/products/**/*.go' --overlap-right
 Choose the file that will act as the root of the dependency graph (for example `my-file.py`), and run:
 
 ```shell
-dep-tree tree my-file.py
+nowly-tree tree my-file.py
 ```
 
 You can see the controls for navigating through the graph pressing `h` at any time:
@@ -212,7 +219,7 @@ h      -> show this help section
 The dependency linting can be executed with:
 
 ```shell
-dep-tree check
+nowly-tree check
 ```
 
 This is specially useful for CI systems, for ensuring that parts of an application that
@@ -461,4 +468,3 @@ the tool ensures that this architectural "harmony" remains undisturbed.
 - Python
 - JavaScript/TypeScript (es imports/exports)
 - Rust (beta)
-

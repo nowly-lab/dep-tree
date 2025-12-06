@@ -5,3 +5,5 @@ dist/
 
 /.dep-tree.yml
 /dep-tree
+
+.envrc

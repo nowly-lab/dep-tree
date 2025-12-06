@@ -32,22 +32,23 @@ func NewRoot(args []string) *cobra.Command {
 	}
 
 	root := &cobra.Command{
-		Use:               "dep-tree",
-		Version:           "v0.23.4",
+		Use:               "nowly-tree",
+		Version:           "v0.23.6",
 		Short:             "Visualize and check your project's dependency graph",
 		SilenceUsage:      true,
 		Args:              cobra.ArbitraryArgs,
 		CompletionOptions: cobra.CompletionOptions{HiddenDefaultCmd: true},
-		Example: `$ dep-tree src/index.ts
-$ dep-tree entropy src/index.ts
-$ dep-tree tree package/main.py --unwrap-exports
-$ dep-tree check`,
+		Example: `$ nowly-tree src/index.ts
+$ nowly-tree entropy src/index.ts
+$ nowly-tree tree package/main.py --unwrap-exports
+$ nowly-tree check`,
 		Long: `
-      ____         _ __       _
-     |  _ \   ___ |  _ \    _| |_  _ __  ___   ___
-     | | | | / _ \| |_) |  |_   _||  __|/ _ \ / _ \
-     | |_| ||  __/| .__/     | |  | |  |  __/|  __/
-     |____/  \__| |_|        | \__|_|   \___| \___|
+	_   _               _         _____
+| \ | | _____      _| |_   _  |_   _| __ ___  ___
+|  \| |/ _ \ \ /\ / / | | | |   | || '__/ _ \/ _ \
+| |\  | (_) \ V  V /| | |_| |   | || | |  __/  __/
+|_| \_|\___/ \_/\_/ |_|\__, |   |_||_|  \___|\___|
+		                     |___/
 `,
 	}
 
@@ -65,7 +66,7 @@ $ dep-tree check`,
 
 	root.Flags().SortFlags = false
 	root.PersistentFlags().SortFlags = false
-	root.PersistentFlags().StringVarP(&fileConfigPath, "config", "c", "", "path to dep-tree's config file. (default .dep-tree.yml)")
+	root.PersistentFlags().StringVarP(&fileConfigPath, "config", "c", "", "path to nowly-tree's config file. (default .dep-tree.yml)")
 	root.PersistentFlags().BoolVar(&cliCfg.UnwrapExports, "unwrap-exports", false, "trace re-exported symbols to the file where they are declared. (default false)")
 	root.PersistentFlags().BoolVar(&cliCfg.Js.TsConfigPaths, "js-tsconfig-paths", true, "follow the tsconfig.json paths while resolving imports.")
 	root.PersistentFlags().BoolVar(&cliCfg.Js.Workspaces, "js-workspaces", true, "take the workspaces attribute in the root package.json into account for resolving paths.")
