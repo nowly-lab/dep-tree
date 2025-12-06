@@ -446,6 +446,84 @@
     document.getElementById('selectedFile').textContent = 'Click on a file to see its dependencies';
   }
 
+  // Delete node function
+  function deleteNode(e, button) {
+    e.handled = true; // Prevent the node click event from firing
+    const node = button.part;
+
+    if (node && node.data.group === -2) { // Only delete from Target Tree
+      console.log('DEBUG: Deleting node:', node.data);
+
+      myDiagram.startTransaction('delete node');
+
+      if (node.data.isFile) {
+        // Delete single file node
+        deleteNodeAndLinks(node);
+      } else if (node.data.isDirectory) {
+        // Delete directory and all files within it
+        const nodesToDelete = [];
+
+        // Find all child nodes (files) in this directory
+        myDiagram.nodes.each(n => {
+          if (n.data.group === -2 && n.data.isFile) {
+            // Check if this file is a child of the directory being deleted
+            if (isChildOfDirectory(n, node)) {
+              nodesToDelete.push(n);
+            }
+          }
+        });
+
+        // Delete all child files first
+        nodesToDelete.forEach(childNode => {
+          deleteNodeAndLinks(childNode);
+        });
+
+        // Then delete the directory itself
+        deleteNodeAndLinks(node);
+      }
+
+      myDiagram.commitTransaction('delete node');
+      updateStatus();
+    }
+  }
+
+  // Helper function to check if a node is a child of a directory
+  function isChildOfDirectory(fileNode, dirNode) {
+    // Check if the file's parent path matches the directory path
+    const filePath = fileNode.data.fullPath || '';
+    const dirPath = dirNode.data.dirPath || '';
+
+    // Also check by traversing the tree structure
+    let parent = fileNode.findTreeParentNode();
+    while (parent) {
+      if (parent === dirNode) {
+        return true;
+      }
+      parent = parent.findTreeParentNode();
+    }
+
+    return false;
+  }
+
+  // Helper function to delete a node and its connected links
+  function deleteNodeAndLinks(node) {
+    // Find and remove all links connected to this node
+    const linksToRemove = [];
+    myDiagram.links.each(link => {
+      if (link.fromNode === node || link.toNode === node) {
+        linksToRemove.push(link);
+      }
+    });
+
+    // Remove the links
+    linksToRemove.forEach(link => {
+      myDiagram.remove(link);
+    });
+
+    // Remove the node
+    myDiagram.remove(node);
+  }
+
   // Initialize diagram
   function init() {
     function handleTreeCollapseExpand(e) {
@@ -510,7 +588,24 @@
                   margin: new go.Margin(2, 4, 2, 2)
                 })
                 .bind('text', 'text')
-                .bind('stroke', 'group', k => k === -1 ? '#2c3e50' : '#8e44ad')
+                .bind('stroke', 'group', k => k === -1 ? '#2c3e50' : '#8e44ad'),
+              // Delete button for Target Tree nodes (right side)
+              go.GraphObject.build('Button', {
+                  width: 16,
+                  height: 16,
+                  margin: new go.Margin(0, 2, 0, 4),
+                  click: deleteNode
+                })
+                .bind('visible', '', data => data.group === -2 && (data.isFile || data.isDirectory))
+                .add(
+                  new go.Shape({
+                    figure: 'XLine',
+                    stroke: '#dc3545',
+                    strokeWidth: 2,
+                    width: 10,
+                    height: 10
+                  })
+                )
             )
         );
 
