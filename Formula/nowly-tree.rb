@@ -11,7 +11,7 @@ class NowlyTree < Formula
   on_macos do
     if Hardware::CPU.intel?
       url "https://github.com/nowly-lab/dep-tree/releases/download/v0.23.7/nowly-tree_darwin_amd64.tar.gz"
-      sha256 "db8c18c7b369d4b3c030a5ed04617d719a83e462a10afee88c75a141d91614cb"
+      sha256 "69d8c50152ff1b21aff9d8cc191187adecca4cdaf67312079591eccbb01cfa73"
 
       def install
         bin.install "nowly-tree"
@@ -19,7 +19,7 @@ class NowlyTree < Formula
     end
     if Hardware::CPU.arm?
       url "https://github.com/nowly-lab/dep-tree/releases/download/v0.23.7/nowly-tree_darwin_arm64.tar.gz"
-      sha256 "84a3973bae2df2f890315a1417ab94cac7d1b3e8130fab4498eb8bac80a544c7"
+      sha256 "f7902af393ca6058bf55018a03a37bcdec8309e72e17b180a6ed15675d082c60"
 
       def install
         bin.install "nowly-tree"
@@ -30,14 +30,14 @@ class NowlyTree < Formula
   on_linux do
     if Hardware::CPU.intel? && Hardware::CPU.is_64_bit?
       url "https://github.com/nowly-lab/dep-tree/releases/download/v0.23.7/nowly-tree_linux_amd64.tar.gz"
-      sha256 "3ff48b0f009dc45714e7b6a577b572e1299e9f3a64c6ebc8ec76507c3af1413a"
+      sha256 "3c3245d8eee1490c9535de0260960a15ea51ae02b290c110f3aab4f0e1b401c1"
       def install
         bin.install "nowly-tree"
       end
     end
     if Hardware::CPU.arm? && Hardware::CPU.is_64_bit?
       url "https://github.com/nowly-lab/dep-tree/releases/download/v0.23.7/nowly-tree_linux_arm64.tar.gz"
-      sha256 "ef3b04c99ef39e781b58b5b82d557054b36557ab84160c4f67ddbed0b1fc594b"
+      sha256 "f5854aad6ba6ec983a5de8ceea7b045d914a3ac856a2d5d1c47880d3b0fc8c18"
       def install
         bin.install "nowly-tree"
       end
