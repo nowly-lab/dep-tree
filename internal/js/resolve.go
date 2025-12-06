@@ -103,19 +103,28 @@ func retrieveWithExt(absPath string) string {
 
 func getFileAbsPath(id string) string {
 	absPath, err := filepath.Abs(id)
-	switch {
-	case err != nil:
+	if err != nil {
 		return ""
-	case utils.DirExists(absPath):
+	}
+
+	// First, try to resolve as a file (with extensions)
+	// This fixes the issue where both a file and directory with the same name exist
+	fileResult := retrieveWithExt(absPath)
+	if fileResult != "" {
+		return fileResult
+	}
+
+	// If no file found, try as directory
+	if utils.DirExists(absPath) {
 		pckJson, err := readPackageJson(absPath)
 		if err != nil || pckJson.Main == "" {
 			return retrieveWithExt(filepath.Join(absPath, "index"))
 		} else {
 			return retrieveWithExt(filepath.Join(absPath, pckJson.Main))
 		}
-	default:
-		return retrieveWithExt(absPath)
 	}
+
+	return ""
 }
 
 // findPackageJson starts from a search path and goes up dir by dir

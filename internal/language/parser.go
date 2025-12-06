@@ -1,6 +1,8 @@
 package language
 
 import (
+	"strings"
+
 	"github.com/elliotchance/orderedmap/v2"
 	"github.com/gabotechs/dep-tree/internal/graph"
 	"github.com/gabotechs/dep-tree/internal/utils"
@@ -31,14 +33,17 @@ func NewParser(lang Language) *Parser {
 var _ graph.NodeParser[*FileInfo] = &Parser{}
 
 func (p *Parser) shouldExclude(path string) bool {
+	// Escape square brackets in the path to treat them as literal characters
+	escapedPath := escapeSquareBrackets(path)
+
 	for _, exclusion := range p.Exclude {
-		if ok, _ := utils.GlobstarMatch(exclusion, path); ok {
+		if ok, _ := utils.GlobstarMatch(exclusion, escapedPath); ok {
 			return true
 		}
 	}
 	if len(p.Include) > 0 {
 		for _, inclusion := range p.Include {
-			if ok, _ := utils.GlobstarMatch(inclusion, path); ok {
+			if ok, _ := utils.GlobstarMatch(inclusion, escapedPath); ok {
 				return false
 			}
 		}
@@ -46,6 +51,14 @@ func (p *Parser) shouldExclude(path string) bool {
 	} else {
 		return false
 	}
+}
+
+// escapeSquareBrackets escapes square brackets in a pattern to treat them as literal characters
+func escapeSquareBrackets(pattern string) string {
+	// Replace [ with \[ and ] with \]
+	pattern = strings.ReplaceAll(pattern, "[", "\\[")
+	pattern = strings.ReplaceAll(pattern, "]", "\\]")
+	return pattern
 }
 
 func (p *Parser) Node(id string) (*graph.Node[*FileInfo], error) {

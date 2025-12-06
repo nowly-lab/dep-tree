@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/bmatcuk/doublestar/v4"
 	"github.com/gabotechs/dep-tree/internal/config"
@@ -200,9 +201,19 @@ func inferLang(files []string, cfg *config.Config) (language.Language, error) {
 	}
 }
 
+// escapeSquareBrackets escapes square brackets in a pattern to treat them as literal characters
+func escapeSquareBrackets(pattern string) string {
+	// Replace [ with \[ and ] with \]
+	pattern = strings.ReplaceAll(pattern, "[", "\\[")
+	pattern = strings.ReplaceAll(pattern, "]", "\\]")
+	return pattern
+}
+
 func filesFromArgs(args []string) ([]string, error) {
 	var result []string
 	for _, arg := range args {
+		// Use the original pattern without escaping square brackets for glob expansion
+		// Square brackets in glob patterns are used for character classes, not literal characters
 		basepath, pattern := doublestar.SplitPattern(arg)
 		fsys := os.DirFS(basepath)
 		matches, err := doublestar.Glob(fsys, pattern)
