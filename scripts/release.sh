@@ -232,8 +232,8 @@ print_success "All required tools are available"
 # Update version in cmd/root.go
 print_info "Updating version in cmd/root.go..."
 if [[ "$DRY_RUN" == "false" ]]; then
-    # Use a more precise sed pattern to match the exact format
-    sed -i.bak 's/Version:[[:space:]]*"v[0-9]\+\.[0-9]\+\.[0-9]\+"/Version:           "v'$VERSION'"/' cmd/root.go
+    # Use a more precise sed pattern to match the exact format including the comma
+    sed -i.bak 's/Version:[[:space:]]*"v[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*",/Version:           "v'$VERSION'",/' cmd/root.go
     rm cmd/root.go.bak
     print_success "Version updated in cmd/root.go"
 
@@ -242,6 +242,8 @@ if [[ "$DRY_RUN" == "false" ]]; then
         print_success "Version verification successful: v$VERSION"
     else
         print_error "Version update failed - version not found in cmd/root.go"
+        print_info "Current version line:"
+        grep "Version:" cmd/root.go
         exit 1
     fi
 else
