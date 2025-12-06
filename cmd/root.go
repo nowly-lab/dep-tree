@@ -33,7 +33,7 @@ func NewRoot(args []string) *cobra.Command {
 
 	root := &cobra.Command{
 		Use:               "nowly-tree",
-		Version:           "v0.23.11",
+		Version:           "v0.23.12",
 		Short:             "Visualize and check your project's dependency graph",
 		SilenceUsage:      true,
 		Args:              cobra.ArbitraryArgs,
