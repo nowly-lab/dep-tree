@@ -453,8 +453,14 @@ func writeDependenciesToFile(filePath string, deps FileDependencies, removeRelat
 	if removeRelate {
 		// Remove new format comments as well
 		newContent = newRe.ReplaceAllString(contentStr, "")
-		// Clean up any extra newlines
-		newContent = strings.TrimSpace(newContent)
+		// Clean up any extra newlines but preserve original file ending
+		newContent = strings.TrimLeft(newContent, "\n")
+		// Preserve original trailing whitespace/newlines
+		if strings.HasSuffix(string(content), "\n") {
+			newContent = strings.TrimRight(newContent, "\n") + "\n"
+		} else {
+			newContent = strings.TrimRight(newContent, "\n")
+		}
 	} else {
 		// Sort the dependencies by file name to ensure consistent ordering
 		sortedDependsOn := make([]string, len(deps.DependsOn))
@@ -494,8 +500,16 @@ func writeDependenciesToFile(filePath string, deps FileDependencies, removeRelat
 		// Clean up any extra newlines at the beginning
 		contentStr = strings.TrimLeft(contentStr, "\n")
 
-		// Add dependency block at the top of the file
-		newContent = dependencyBlock.String() + "\n\n" + contentStr
+		// Add dependency block at the top of the file, preserving original file ending
+		if strings.HasSuffix(string(content), "\n") {
+			// Original file ended with newline, ensure new content does too
+			contentStr = strings.TrimRight(contentStr, "\n")
+			newContent = dependencyBlock.String() + "\n\n" + contentStr + "\n"
+		} else {
+			// Original file didn't end with newline, preserve that
+			contentStr = strings.TrimRight(contentStr, "\n")
+			newContent = dependencyBlock.String() + "\n\n" + contentStr
+		}
 	}
 
 	// Write the modified content back to the file
